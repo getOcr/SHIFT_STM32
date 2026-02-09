@@ -1,0 +1,6 @@
+../Core/Src/max30102.c:5:26:MAX30102_WriteReg	1
+../Core/Src/max30102.c:11:26:MAX30102_ReadReg	2
+../Core/Src/max30102.c:18:26:MAX30102_ReadRegs	2
+../Core/Src/max30102.c:25:19:MAX30102_Init	7
+../Core/Src/max30102.c:54:19:MAX30102_GetFIFOLevel	3
+../Core/Src/max30102.c:64:19:MAX30102_ReadFIFO_OneSample	2
