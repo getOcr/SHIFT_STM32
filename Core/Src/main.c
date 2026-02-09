@@ -53,7 +53,7 @@ uint8_t txbuffer[27] = "welcome to BinaryUpdate\n\r";
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-//static void MX_I2C1_Init(void);
+static void MX_I2C1_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -63,25 +63,27 @@ static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN 0 */
 #include <stdio.h>
 
-/* printf -> USART2, for PuTTY/serial terminal (115200). */
-/*#ifdef __GNUC__
+#ifdef __GNUC__
 #define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
 #else
 #define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
 #endif
+
 PUTCHAR_PROTOTYPE
 {
-  HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+  ITM_SendChar(ch);
   return ch;
 }
 
 int _write(int file, char *ptr, int len)
 {
-  (void)file;
-  HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, HAL_MAX_DELAY);
+  int i;
+  for (i = 0; i < len; i++) {
+    ITM_SendChar((*ptr++));
+  }
   return len;
 }
-*/
+
 /* USER CODE END 0 */
 
 /**
@@ -113,10 +115,16 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  //MX_I2C1_Init();
-  MX_USART2_UART_Init();
+  MX_I2C1_Init();
+
+  //MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  //printf("hello from STM32\r\n");
+  printf("SWO Debug Start...\r\n");
+  if (MAX30102_Init(&hi2c1) != HAL_OK) {
+    printf("MAX30102 Init FAIL\r\n");
+  } else {
+    printf("MAX30102 Init OK\r\n");
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -126,9 +134,10 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	HAL_UART_Transmit(&huart2, txbuffer, 27, 10);
-    //printf("tick\r\n");
-    HAL_Delay(1000);
+	max30102_ok = (MAX30102_ReadFIFO_OneSample(&max30102_red, &max30102_ir) == HAL_OK) ? 1 : 0;
+	printf("RED=%lu IR=%lu OK=%u\r\n", (unsigned long)max30102_red, (unsigned long)max30102_ir, max30102_ok);
+	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+	HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -260,13 +269,24 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PA1 */
   GPIO_InitStruct.Pin = GPIO_PIN_1;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PD12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
