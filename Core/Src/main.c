@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -46,7 +47,41 @@ I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef huart2;
 
+/* Definitions for task_MPU6050 */
+osThreadId_t task_MPU6050Handle;
+const osThreadAttr_t task_MPU6050_attributes = {
+  .name = "task_MPU6050",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityHigh,
+};
+/* Definitions for task_MAX30102 */
+osThreadId_t task_MAX30102Handle;
+const osThreadAttr_t task_MAX30102_attributes = {
+  .name = "task_MAX30102",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for task_AHT21 */
+osThreadId_t task_AHT21Handle;
+const osThreadAttr_t task_AHT21_attributes = {
+  .name = "task_AHT21",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for task_PiComm */
+osThreadId_t task_PiCommHandle;
+const osThreadAttr_t task_PiComm_attributes = {
+  .name = "task_PiComm",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityBelowNormal,
+};
+/* Definitions for queue_data2Pi */
+osMessageQueueId_t queue_data2PiHandle;
+const osMessageQueueAttr_t queue_data2Pi_attributes = {
+  .name = "queue_data2Pi"
+};
 /* USER CODE BEGIN PV */
+osMutexId_t i2cMutexHandle = NULL;  /* protect shared I2C (hi2c1) */
 uint32_t max30102_red = 0, max30102_ir = 0;
 uint8_t  max30102_ok = 0;
 uint32_t aht21_humidity;
@@ -60,6 +95,11 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART2_UART_Init(void);
+void StartDefaultTask(void *argument);
+void StartTask02(void *argument);
+void StartTask03(void *argument);
+void StartTask04(void *argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -136,9 +176,61 @@ int main(void)
   	printf("AHT21 Init OK\r\n");
   }
 
-  MPU6050_Initialization();
-  printf("MPU6050 Init Complete\r\n");
+  if (MPU6050_Initialization() != HAL_OK) {
+    printf("MPU6050 Init FAIL\r\n");
+  } else {
+    printf("MPU6050 Init OK\r\n");
+  }
   /* USER CODE END 2 */
+
+  /* Init scheduler */
+  osKernelInitialize();
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  i2cMutexHandle = osMutexNew(NULL);
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* creation of queue_data2Pi */
+  queue_data2PiHandle = osMessageQueueNew (16, sizeof(uint16_t), &queue_data2Pi_attributes);
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* creation of task_MPU6050 */
+  task_MPU6050Handle = osThreadNew(StartDefaultTask, NULL, &task_MPU6050_attributes);
+
+  /* creation of task_MAX30102 */
+  task_MAX30102Handle = osThreadNew(StartTask02, NULL, &task_MAX30102_attributes);
+
+  /* creation of task_AHT21 */
+  task_AHT21Handle = osThreadNew(StartTask03, NULL, &task_AHT21_attributes);
+
+  /* creation of task_PiComm */
+  task_PiCommHandle = osThreadNew(StartTask04, NULL, &task_PiComm_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -147,34 +239,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	max30102_ok = (MAX30102_ReadFIFO_OneSample(&max30102_red, &max30102_ir) == HAL_OK) ? 1 : 0;
-	printf("RED=%lu IR=%lu OK=%u\r\n", (unsigned long)max30102_red, (unsigned long)max30102_ir, max30102_ok);
-
-	aht21_humidity = AHT21_Read_Humidity();
-	aht21_temperature = AHT21_Read_Temperature();
-	aht21_ok = (aht21_humidity != 0xFFFFFFFF && aht21_temperature != (int32_t)0x80000000);
-	printf("AHT21: T=%ldC H=%lu%% OK=%u\r\n", (long)aht21_temperature, (unsigned long)aht21_humidity, aht21_ok);
-
-	if (MPU6050_DataReady())
-	{
-		MPU6050_ProcessData(&MPU6050_Data);
-
-		printf("AX=%d AY=%d AZ=%d | GX=%d GY=%d GZ=%d\r\n",
-				MPU6050_Data.acc_x_raw,
-				MPU6050_Data.acc_y_raw,
-				MPU6050_Data.acc_z_raw,
-				MPU6050_Data.gyro_x_raw,
-				MPU6050_Data.gyro_y_raw,
-				MPU6050_Data.gyro_z_raw);
-	}
-	else
-	{
-		//printf("MPU6050 Not Ready\r\n");
-	}
-
-	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-
-	HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -326,7 +390,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
@@ -337,6 +401,120 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the task_MPU6050 thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void *argument)
+{
+  /* USER CODE BEGIN 5 */
+  for (;;)
+  {
+    if (i2cMutexHandle != NULL && osMutexAcquire(i2cMutexHandle, osWaitForever) == osOK)
+    {
+      MPU6050_ProcessData(&MPU6050_Data);
+      printf("A(g): X=%.3f Y=%.3f Z=%.3f | G(dps): X=%.3f Y=%.3f Z=%.3f | T=%.1fC\r\n",
+             MPU6050_Data.acc_x, MPU6050_Data.acc_y, MPU6050_Data.acc_z,
+             MPU6050_Data.gyro_x, MPU6050_Data.gyro_y, MPU6050_Data.gyro_z,
+             MPU6050_Data.temperature);
+      osMutexRelease(i2cMutexHandle);
+    }
+    osDelay(1000);  /* 1 second */
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartTask02 */
+/**
+* @brief Function implementing the task_MAX30102 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask02 */
+void StartTask02(void *argument)
+{
+  /* USER CODE BEGIN StartTask02 */
+  for (;;)
+  {
+    if (i2cMutexHandle != NULL && osMutexAcquire(i2cMutexHandle, osWaitForever) == osOK)
+    {
+      max30102_ok = (MAX30102_ReadFIFO_OneSample(&max30102_red, &max30102_ir) == HAL_OK) ? 1 : 0;
+      printf("RED=%lu IR=%lu OK=%u\r\n", (unsigned long)max30102_red, (unsigned long)max30102_ir, max30102_ok);
+      osMutexRelease(i2cMutexHandle);
+    }
+    osDelay(1000);  /* 1 second */
+  }
+  /* USER CODE END StartTask02 */
+}
+
+/* USER CODE BEGIN Header_StartTask03 */
+/**
+* @brief Function implementing the task_AHT21 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask03 */
+void StartTask03(void *argument)
+{
+  /* USER CODE BEGIN StartTask03 */
+  for (;;)
+  {
+    if (i2cMutexHandle != NULL && osMutexAcquire(i2cMutexHandle, osWaitForever) == osOK)
+    {
+      aht21_humidity = AHT21_Read_Humidity();
+      aht21_temperature = AHT21_Read_Temperature();
+      aht21_ok = (aht21_humidity != 0xFFFFFFFFU && aht21_temperature != (int32_t)0x80000000);
+      printf("AHT21: T=%ld H=%lu%% OK=%u\r\n", (long)aht21_temperature, (unsigned long)aht21_humidity, aht21_ok);
+      osMutexRelease(i2cMutexHandle);
+    }
+    osDelay(1000);  /* 1 second */
+  }
+  /* USER CODE END StartTask03 */
+}
+
+/* USER CODE BEGIN Header_StartTask04 */
+/**
+* @brief Function implementing the task_PiComm thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask04 */
+void StartTask04(void *argument)
+{
+  /* USER CODE BEGIN StartTask04 */
+  for (;;)
+  {
+    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+    osDelay(1000);  /* 1 second */
+  }
+  /* USER CODE END StartTask04 */
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM1)
+  {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

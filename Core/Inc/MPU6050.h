@@ -59,8 +59,8 @@ void MPU6050_Writebytes(uint8_t reg_addr, uint8_t len, uint8_t *data);
 void MPU6050_Readbyte(uint8_t reg_addr, uint8_t *data);
 void MPU6050_Readbytes(uint8_t reg_addr, uint8_t len, uint8_t *data);
 
-/* Initialization */
-void MPU6050_Initialization(void);
+/* Initialization: returns HAL_OK on success, HAL_ERROR on failure */
+HAL_StatusTypeDef MPU6050_Initialization(void);
 
 /* Data read / convert */
 void MPU6050_Get6AxisRawData(Struct_MPU6050 *mpu6050);

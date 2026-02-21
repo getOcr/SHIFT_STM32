@@ -102,52 +102,48 @@ void MPU6050_Readbytes(uint8_t reg_addr, uint8_t len, uint8_t *data)
 /* -----------------------------
  *  Initialization / bring-up
  * ----------------------------- */
-void MPU6050_Initialization(void)
+HAL_StatusTypeDef MPU6050_Initialization(void)
 {
     HAL_StatusTypeDef status;
     uint8_t who_am_i = 0;
 
     HAL_Delay(MPU6050_STARTUP_DELAY_MS);
-    //printf("Checking MPU6050...\n");
 
     status = MPU6050_ReadReg(MPU6050_WHO_AM_I, &who_am_i);
     if (status != HAL_OK)
     {
         printf("ERROR: I2C read WHO_AM_I failed (status=%d)\n", (int)status);
-        return;
+        return HAL_ERROR;
     }
 
-    if (who_am_i == 0x68)
-    {
-        printf("MPU6050 WHO_AM_I = 0x%02X ... OK\n", who_am_i);
-    }
-    else
+    if (who_am_i != 0x68U)
     {
         printf("ERROR: MPU6050 WHO_AM_I = 0x%02X (expected 0x68)\n", who_am_i);
-        return; /* don't hard-hang during bring-up */
+        return HAL_ERROR;
     }
+    printf("MPU6050 WHO_AM_I = 0x%02X ... OK\n", who_am_i);
 
     /* Reset device */
     status = MPU6050_WriteReg(MPU6050_PWR_MGMT_1, (1U << 7));
-    if (status != HAL_OK) { printf("ERROR: reset failed\n"); return; }
+    if (status != HAL_OK) { printf("ERROR: reset failed\n"); return HAL_ERROR; }
     HAL_Delay(100);
 
     /* Wake up (clear sleep), select internal clock */
     status = MPU6050_WriteReg(MPU6050_PWR_MGMT_1, 0x00);
-    if (status != HAL_OK) { printf("ERROR: wake failed\n"); return; }
+    if (status != HAL_OK) { printf("ERROR: wake failed\n"); return HAL_ERROR; }
     HAL_Delay(50);
 
     /* Sample rate divider:
      * Sample Rate = Gyro Output Rate / (1 + SMPRT_DIV)
      * (Gyro output rate is 8 kHz when DLPF disabled, else 1 kHz)
      */
-    status = MPU6050_WriteReg(MPU6050_SMPRT_DIV, 39); /* example: ~200 Hz when base is 8 kHz */
-    if (status != HAL_OK) { printf("ERROR: SMPRT_DIV write failed\n"); return; }
+    status = MPU6050_WriteReg(MPU6050_SMPRT_DIV, 39); /* ~200 Hz when base is 8 kHz */
+    if (status != HAL_OK) { printf("ERROR: SMPRT_DIV write failed\n"); return HAL_ERROR; }
     HAL_Delay(10);
 
     /* DLPF / FSYNC config (0x00 = DLPF disabled / cfg=0) */
     status = MPU6050_WriteReg(MPU6050_CONFIG, 0x00);
-    if (status != HAL_OK) { printf("ERROR: CONFIG write failed\n"); return; }
+    if (status != HAL_OK) { printf("ERROR: CONFIG write failed\n"); return HAL_ERROR; }
     HAL_Delay(10);
 
     /* Gyro full scale:
@@ -156,7 +152,7 @@ void MPU6050_Initialization(void)
     {
         uint8_t FS_SCALE_GYRO = 0x0;
         status = MPU6050_WriteReg(MPU6050_GYRO_CONFIG, (uint8_t)(FS_SCALE_GYRO << 3));
-        if (status != HAL_OK) { printf("ERROR: GYRO_CONFIG write failed\n"); return; }
+        if (status != HAL_OK) { printf("ERROR: GYRO_CONFIG write failed\n"); return HAL_ERROR; }
         HAL_Delay(10);
 
         /* Accel full scale:
@@ -164,7 +160,7 @@ void MPU6050_Initialization(void)
          */
         uint8_t FS_SCALE_ACC = 0x0;
         status = MPU6050_WriteReg(MPU6050_ACCEL_CONFIG, (uint8_t)(FS_SCALE_ACC << 3));
-        if (status != HAL_OK) { printf("ERROR: ACCEL_CONFIG write failed\n"); return; }
+        if (status != HAL_OK) { printf("ERROR: ACCEL_CONFIG write failed\n"); return HAL_ERROR; }
         HAL_Delay(10);
 
         MPU6050_Get_LSB_Sensitivity(FS_SCALE_GYRO, FS_SCALE_ACC);
@@ -181,16 +177,17 @@ void MPU6050_Initialization(void)
                                   (uint8_t)((INT_LEVEL << 7) |
                                             (LATCH_INT_EN << 5) |
                                             (INT_RD_CLEAR << 4)));
-        if (status != HAL_OK) { printf("ERROR: INT_PIN_CFG write failed\n"); return; }
+        if (status != HAL_OK) { printf("ERROR: INT_PIN_CFG write failed\n"); return HAL_ERROR; }
         HAL_Delay(10);
 
         /* Enable Data Ready interrupt */
         status = MPU6050_WriteReg(MPU6050_INT_ENABLE, 0x01);
-        if (status != HAL_OK) { printf("ERROR: INT_ENABLE write failed\n"); return; }
+        if (status != HAL_OK) { printf("ERROR: INT_ENABLE write failed\n"); return HAL_ERROR; }
         HAL_Delay(10);
     }
 
     printf("MPU6050 initialization finished\n");
+    return HAL_OK;
 }
 
 /* -----------------------------
@@ -249,11 +246,14 @@ void MPU6050_DataConvert(Struct_MPU6050 *mpu6050)
     mpu6050->gyro_z = (float)mpu6050->gyro_z_raw / LSB_Sensitivity_GYRO;
 }
 
-/* Returns 1 when INT pin is high (Data Ready), else 0 */
-int MPU6050_DataReady(void)
+/*
+ * Returns 1 when INT pin is high (Data Ready), else 0
+ */
+/*int MPU6050_DataReady(void)
 {
     return (HAL_GPIO_ReadPin(MPU6050_INT_PORT, MPU6050_INT_PIN) == GPIO_PIN_SET) ? 1 : 0;
 }
+*/
 
 /* One-call helper: read raw + convert */
 void MPU6050_ProcessData(Struct_MPU6050 *mpu6050)
