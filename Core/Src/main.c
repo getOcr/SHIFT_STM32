@@ -22,6 +22,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "max30102.h"
+#include "AHT21.h"
+#include "MPU6050.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,7 +49,10 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 uint32_t max30102_red = 0, max30102_ir = 0;
 uint8_t  max30102_ok = 0;
-uint8_t txbuffer[27] = "welcome to BinaryUpdate\n\r";
+uint32_t aht21_humidity;
+int32_t aht21_temperature;
+uint8_t aht21_ok;
+Struct_MPU6050 MPU6050_Data;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -116,8 +121,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C1_Init();
-
-  //MX_USART2_UART_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   printf("SWO Debug Start...\r\n");
   if (MAX30102_Init(&hi2c1) != HAL_OK) {
@@ -125,6 +129,15 @@ int main(void)
   } else {
     printf("MAX30102 Init OK\r\n");
   }
+
+  if (AHT21_Init(&hi2c1) != HAL_OK){
+  	printf("AHT21 Init FAIL\r\n");
+  }	else {
+  	printf("AHT21 Init OK\r\n");
+  }
+
+  MPU6050_Initialization();
+  printf("MPU6050 Init Complete\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -136,7 +149,31 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	max30102_ok = (MAX30102_ReadFIFO_OneSample(&max30102_red, &max30102_ir) == HAL_OK) ? 1 : 0;
 	printf("RED=%lu IR=%lu OK=%u\r\n", (unsigned long)max30102_red, (unsigned long)max30102_ir, max30102_ok);
+
+	aht21_humidity = AHT21_Read_Humidity();
+	aht21_temperature = AHT21_Read_Temperature();
+	aht21_ok = (aht21_humidity != 0xFFFFFFFF && aht21_temperature != (int32_t)0x80000000);
+	printf("AHT21: T=%ldC H=%lu%% OK=%u\r\n", (long)aht21_temperature, (unsigned long)aht21_humidity, aht21_ok);
+
+	if (MPU6050_DataReady())
+	{
+		MPU6050_ProcessData(&MPU6050_Data);
+
+		printf("AX=%d AY=%d AZ=%d | GX=%d GY=%d GZ=%d\r\n",
+				MPU6050_Data.acc_x_raw,
+				MPU6050_Data.acc_y_raw,
+				MPU6050_Data.acc_z_raw,
+				MPU6050_Data.gyro_x_raw,
+				MPU6050_Data.gyro_y_raw,
+				MPU6050_Data.gyro_z_raw);
+	}
+	else
+	{
+		//printf("MPU6050 Not Ready\r\n");
+	}
+
 	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+
 	HAL_Delay(1000);
   }
   /* USER CODE END 3 */
@@ -163,7 +200,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 25;
+  RCC_OscInitStruct.PLL.PLLM = 8;
   RCC_OscInitStruct.PLL.PLLN = 336;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 4;

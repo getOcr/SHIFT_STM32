@@ -1,0 +1,8 @@
+../Core/Src/AHT21.c:9:26:AHT21_Write	2
+../Core/Src/AHT21.c:15:26:AHT21_Read	2
+../Core/Src/AHT21.c:21:19:AHT21_Init	5
+../Core/Src/AHT21.c:47:19:AHT21_init	1
+../Core/Src/AHT21.c:60:26:AHT21_TriggerMeasurement	1
+../Core/Src/AHT21.c:66:26:AHT21_Read6	1
+../Core/Src/AHT21.c:72:10:AHT21_Read_Humidity	3
+../Core/Src/AHT21.c:96:9:AHT21_Read_Temperature	3
