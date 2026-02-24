@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include "max30102_processing.h"
-
+#include "MPU6050.h"
 /* 32-bit system alert register  (may want to decrease to 16) */
 typedef uint32_t SHIFT_AlertFlags;
 
@@ -19,14 +19,13 @@ typedef uint32_t SHIFT_AlertFlags;
 #define ALERT_SIGNAL_LOW         (1UL << 6)
 #define ALERT_SENSOR_FAULT       (1UL << 7)
 
-/* Reserved for MPU6050 fall detection 
 #define ALERT_FALL_SUSPECTED     (1UL << 8)
 #define ALERT_FALL_CONFIRMED     (1UL << 9)
-*/
+
 /* -------- Thresholds -------- */
 
 /* Cardiovascular */
-#define BPM_HIGH_THRESHOLD         140.0f
+#define BPM_HIGH_THRESHOLD          120.0f
 #define BPM_LOW_THRESHOLD           45.0f
 
 /* Oxygen */
@@ -45,8 +44,9 @@ typedef uint32_t SHIFT_AlertFlags;
 
 
 void SHIFT_CheckAlerts(
-    MAX30102_Metrics *cardio_metrics,
+    MAX30102_Metrics *metrics,
     float temperature_c,
+	Struct_MPU6050 *mpu6050,
     SHIFT_AlertFlags *flags);
 
 #endif

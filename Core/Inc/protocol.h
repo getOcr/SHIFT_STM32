@@ -2,7 +2,7 @@
 #define SHIFT_PROTOCOL_H
 
 #include <stdint.h>
-#include "shift_alert.h"
+#include "alert.h"
 
 #define SHIFT_START_BYTE   0xAA
 #define SHIFT_END_BYTE     0x55
@@ -10,7 +10,7 @@
 
 #define SHIFT_FRAME_SIZE   20
 
-typedef struct
+typedef struct __attribute__((packed))
 {
     uint8_t  start;
     uint8_t  version;
@@ -29,6 +29,8 @@ typedef struct
     uint8_t  end;
 
 } SHIFT_Frame;
+
+#define SHIFT_FRAME_SIZE sizeof(SHIFT_Frame)
 
 void SHIFT_BuildFrame(
     SHIFT_Frame *frame,

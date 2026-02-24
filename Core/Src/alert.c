@@ -1,5 +1,5 @@
-#include "shift_alert.h"
-
+#include "alert.h"
+#include <math.h>
 /* Persistence counters */
 static uint8_t bpm_high_cnt = 0;
 static uint8_t bpm_low_cnt = 0;
@@ -8,10 +8,15 @@ static uint8_t spo2_critical_cnt = 0;
 static uint8_t temp_high_cnt = 0;
 static uint8_t temp_low_cnt = 0;
 static uint8_t signal_low_cnt = 0;
+static float pre_ax = 0.0f, pre_ay = 0.0f, pre_az = 0.0f;
+static float pre_mag = 1.0f;
+static uint32_t fall_timestamp = 0;
+static uint8_t fall_state = 0;
 
 void SHIFT_CheckAlerts(
     MAX30102_Metrics *cardio_metrics,
     float temperature_c,
+    Struct_MPU6050 *mpu6050,
     SHIFT_AlertFlags *flags)
 {
     *flags = 0;
@@ -92,16 +97,53 @@ void SHIFT_CheckAlerts(
     }
 
     /* ===============================
-       FALL DETECTION (Reserved)
+       FALL DETECTION
        =============================== */
 
-    /* 
-       Future integration point:
 
-       if(fall_suspected)
-           *flags |= ALERT_FALL_SUSPECTED;
+    //   Future integration point:
+    float ax = mpu6050->acc_x;
+    float ay = mpu6050->acc_y;
+    float az = mpu6050->acc_z;
+    float current_mag = sqrtf(ax*ax + ay*ay + az*az);
 
-       if(fall_confirmed)
-           *flags |= ALERT_FALL_CONFIRMED;
-    */
+    if(fall_state == 0)
+    {
+        if (current_mag > 0.8f && current_mag < 1.2f)
+        {
+            pre_ax = ax;
+            pre_ay = ay;
+            pre_az = az;
+            pre_mag = current_mag;
+        }
+
+        if (current_mag > 3.0f)
+        {
+            fall_state = 1;
+            fall_timestamp = HAL_GetTick();
+            *flags |= ALERT_FALL_SUSPECTED;
+        }
+    }
+
+    else if (fall_state == 1)
+    {
+        if (HAL_GetTick() - fall_timestamp >= 2000)
+        {
+            float dot_product = (pre_ax * ax + pre_ay * ay + pre_az * az);
+            float cos_theta = dot_product / (pre_mag * current_mag);
+
+            if (cos_theta > 1.0f) cos_theta = 1.0f;
+            if (cos_theta < -1.0f) cos_theta = -1.0f;
+
+            //float angle_change = acosf(cos_theta) * 57.29578f;
+
+            if (cos_theta < 0.707f)
+            {
+                *flags |= ALERT_FALL_CONFIRMED;
+            }
+
+            fall_state = 0;
+        }
+    }
+
 }

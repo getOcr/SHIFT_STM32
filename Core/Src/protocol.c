@@ -1,4 +1,4 @@
-#include "shift_protocol.h"
+#include "protocol.h"
 
 /* Simple XOR CRC */
 static uint8_t SHIFT_ComputeCRC(uint8_t *data, uint16_t len)
