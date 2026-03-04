@@ -1,8 +1,9 @@
-../Core/Src/max30102_processing.c:29:6:MAX30102_StoreSample	5
-../Core/Src/max30102_processing.c:62:14:remove_dc	5
-../Core/Src/max30102_processing.c:95:13:bandpass_filter	3
-../Core/Src/max30102_processing.c:127:14:calculate_bpm	8
-../Core/Src/max30102_processing.c:161:14:calculate_spo2	4
-../Core/Src/max30102_processing.c:188:14:compute_signal_quality	2
-../Core/Src/max30102_processing.c:201:9:MAX30102_Process	3
-../Core/Src/max30102_processing.c:226:6:MAX30102_ResetBuffer	1
+../Core/Src/max30102_processing.c:35:16:is_finger_on_sq	5
+../Core/Src/max30102_processing.c:63:6:MAX30102_StoreSample	5
+../Core/Src/max30102_processing.c:96:14:remove_dc	5
+../Core/Src/max30102_processing.c:129:13:bandpass_filter	3
+../Core/Src/max30102_processing.c:166:14:calculate_bpm	5
+../Core/Src/max30102_processing.c:193:14:calculate_spo2	4
+../Core/Src/max30102_processing.c:220:14:compute_signal_quality	2
+../Core/Src/max30102_processing.c:233:9:MAX30102_Process	4
+../Core/Src/max30102_processing.c:267:6:MAX30102_ResetBuffer	1

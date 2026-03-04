@@ -23,6 +23,40 @@ static uint32_t total_samples = 0;
 /* number of new samples since last processing call (for 1 Hz processing) */
 static uint16_t samples_since_last_process = 0;
 
+/* Adaptive SQ range for finger-on detection (no hard threshold) */
+static float sq_running_min = 1e6f;   /* init high so first real SQ updates it */
+static float sq_running_max = 0.0f;   /* init low so first real SQ updates it */
+#define SQ_DECAY            0.9992f   /* slow drift of min/max toward current */
+#define SQ_FINGER_RATIO     0.35f     /* finger = SQ above min + ratio*(max-min) */
+#define SQ_MIN_RANGE_RATIO  0.12f     /* require range >= this fraction of max before using threshold */
+#define SQ_CONTRAST_RATIO   0.45f     /* require range >= this fraction of max: must have seen real no-finger vs finger contrast */
+
+/* Returns 1 if finger-on (signal present), 0 otherwise. Uses adaptive range. */
+static uint8_t is_finger_on_sq(float sq)
+{
+    if (sq > sq_running_max)
+        sq_running_max = sq;
+    else
+        sq_running_max *= SQ_DECAY;
+
+    if (sq < sq_running_min)
+        sq_running_min = sq;
+    else
+        sq_running_min *= SQ_DECAY;
+
+    float range = sq_running_max - sq_running_min;
+    float max_val = sq_running_max + 1.0f;
+
+    /* Require enough relative range (we've seen both low and high SQ) before trusting threshold */
+    if (range < SQ_MIN_RANGE_RATIO * max_val)
+        return 0;
+    if (range < SQ_CONTRAST_RATIO * max_val)
+        return 0;
+
+    float threshold = sq_running_min + SQ_FINGER_RATIO * range;
+    return (sq > threshold) ? 1 : 0;
+}
+
 /* ==============================
    Store Samples (called in main loop)
    ============================== */
@@ -100,7 +134,7 @@ static void bandpass_filter(float *input, float *output)
     const float b1 = 0.0f;
     const float b2 = -0.1006f;
 
-    float x1=0,x2=0,y1=0,y2=0;
+    static float x1=0,x2=0,y1=0,y2=0;
 
     for(uint16_t n=0; n<MAX30102_BUFFER_SIZE; n++)
     {
@@ -122,37 +156,35 @@ static void bandpass_filter(float *input, float *output)
 }
 
 /* ==============================
-   Peak Detection
+   BPM via Autocorrelation
+   R(tau) = sum S(t)*S(t-tau); find tau that maximizes R in HR range
+   BPM = 60 * SampleRate / best_tau
    ============================== */
+#define BPM_AUTOCORR_LAG_MIN  25   /* 240 BPM: period 0.25s -> lag 25 @100Hz */
+#define BPM_AUTOCORR_LAG_MAX  200  /*  30 BPM: period 2.0s -> lag 200 */
+
 static float calculate_bpm(float *signal)
 {
-    float max_val = 0.0f;
-    for(uint16_t i=0;i<MAX30102_BUFFER_SIZE;i++)
-        if(signal[i] > max_val)
-            max_val = signal[i];
+    float r_max = -1e9f;
+    uint16_t best_lag = BPM_AUTOCORR_LAG_MIN;
 
-    float threshold = 0.5f * max_val;
-
-    uint16_t peak_count = 0;
-    uint16_t last_peak = 0;
-
-    for(uint16_t i=1;i<MAX30102_BUFFER_SIZE-1;i++)
+    for (uint16_t tau = BPM_AUTOCORR_LAG_MIN; tau <= BPM_AUTOCORR_LAG_MAX; tau++)
     {
-        if(signal[i] > threshold &&
-           signal[i] > signal[i-1] &&
-           signal[i] > signal[i+1])
+        float sum = 0.0f;
+        for (uint16_t t = tau; t < MAX30102_BUFFER_SIZE; t++)
         {
-            if(i - last_peak > (MAX30102_SAMPLE_RATE * 0.4f))
-            {
-                peak_count++;
-                last_peak = i;
-            }
+            sum += signal[t] * signal[t - tau];
+        }
+        if (sum > r_max)
+        {
+            r_max = sum;
+            best_lag = tau;
         }
     }
 
-    float duration = MAX30102_BUFFER_SIZE / MAX30102_SAMPLE_RATE;
-
-    return (peak_count / duration) * 60.0f;
+    if (best_lag == 0) return 0.0f;
+    /* period_sec = best_lag / sample_rate; BPM = 60 / period_sec */
+    return (60.0f * MAX30102_SAMPLE_RATE) / (float)best_lag;
 }
 
 /* ==============================
@@ -213,9 +245,18 @@ uint8_t MAX30102_Process(MAX30102_Metrics *metrics)
 
     bandpass_filter(ir_ac, ir_filtered);
 
-    metrics->bpm  = calculate_bpm(ir_filtered);
-    metrics->spo2 = calculate_spo2(red_dc, ir_dc);
     metrics->signal_quality = compute_signal_quality();
+
+    if (!is_finger_on_sq(metrics->signal_quality))
+    {
+        metrics->bpm  = 0.0f;
+        metrics->spo2 = 0.0f;
+    }
+    else
+    {
+        metrics->bpm  = calculate_bpm(ir_filtered);
+        metrics->spo2 = calculate_spo2(red_dc, ir_dc);
+    }
 
     return 1;
 }
@@ -229,4 +270,6 @@ void MAX30102_ResetBuffer(void)
     buffer_full  = 0;
     total_samples = 0;
     samples_since_last_process = 0;
+    sq_running_min = 1e6f;
+    sq_running_max = 0.0f;
 }

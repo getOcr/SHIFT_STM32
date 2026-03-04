@@ -45,7 +45,7 @@ HAL_StatusTypeDef MAX30102_Init(I2C_HandleTypeDef *hi2c)
     status = MAX30102_WriteReg(REG_LED1_PA, 0x24U);
     if (status != HAL_OK) return status;
 
-    status = MAX30102_WriteReg(REG_LED2_PA, 0x24U);
+    status = MAX30102_WriteReg(REG_LED2_PA, 0x0AU);
     if (status != HAL_OK) return status;
 
     return HAL_OK;
