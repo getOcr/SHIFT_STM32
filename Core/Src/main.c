@@ -75,7 +75,7 @@ const osThreadAttr_t task_AHT21_attributes = {
 osThreadId_t task_PiCommHandle;
 const osThreadAttr_t task_PiComm_attributes = {
   .name = "task_PiComm",
-  .stack_size = 128 * 4,
+  .stack_size = 5124,
   .priority = (osPriority_t) osPriorityBelowNormal,
 };
 /* Definitions for queue_data2Pi */
@@ -177,7 +177,6 @@ int main(void)
   MX_I2C1_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  printf("SWO Debug Start...\r\n");
   if (MAX30102_Init(&hi2c1) != HAL_OK) {
     printf("MAX30102 Init FAIL\r\n");
   } else {
@@ -438,13 +437,9 @@ void StartDefaultTask(void *argument)
     if (i2cMutexHandle != NULL && osMutexAcquire(i2cMutexHandle, osWaitForever) == osOK)
     {
       MPU6050_ProcessData(&MPU6050_Data);
-      printf("A(g): X=%.3f Y=%.3f Z=%.3f | G(dps): X=%.3f Y=%.3f Z=%.3f | T=%.1fC\r\n",
-             MPU6050_Data.acc_x, MPU6050_Data.acc_y, MPU6050_Data.acc_z,
-             MPU6050_Data.gyro_x, MPU6050_Data.gyro_y, MPU6050_Data.gyro_z,
-             MPU6050_Data.temperature);
       osMutexRelease(i2cMutexHandle);
     }
-    osDelay(1000);  /* 1 second */
+    osDelay(5);  /* 5 ms -> 200 Hz (match MPU6050 chip rate) */
   }
   /* USER CODE END 5 */
 }
@@ -461,41 +456,38 @@ void StartTask02(void *argument)
   /* USER CODE BEGIN StartTask02 */
 	for (;;)
 	{
-	    if (i2cMutexHandle != NULL &&
-	        osMutexAcquire(i2cMutexHandle, osWaitForever) == osOK)
+	    uint32_t red = 0, ir = 0;
+	    HAL_StatusTypeDef st = HAL_ERROR;
+
+	    if (i2cMutexHandle != NULL && osMutexAcquire(i2cMutexHandle, osWaitForever) == osOK)
 	    {
-	        if (MAX30102_ReadFIFO_OneSample(&max30102_red, &max30102_ir) == HAL_OK)
-	        {
-	            /* Store raw samples into processing buffer */
-	            MAX30102_StoreSample(max30102_red, max30102_ir);
-
-	            /* Print raw data (optional) */
-	            printf("RED=%lu IR=%lu | ",
-	                   (unsigned long)max30102_red,
-	                   (unsigned long)max30102_ir);
-
-	            /* Run processing */
-	            if (MAX30102_Process(&metrics))
-	            {
-	                printf("BPM=%.1f | SpO2=%.1f | SQ=%.1f\r\n",
-	                       metrics.bpm,
-	                       metrics.spo2,
-	                       metrics.signal_quality);
-	            }
-	            else
-	            {
-	                printf("Processing...\r\n");
-	            }
-	        }
-	        else
-	        {
-	            printf("MAX30102 Read FAIL\r\n");
-	        }
-
+	        st = MAX30102_ReadFIFO_OneSample(&red, &ir);
 	        osMutexRelease(i2cMutexHandle);
 	    }
 
-	    osDelay(10);
+	    if (st == HAL_OK)
+	    {
+	        max30102_red = red;
+	        max30102_ir  = ir;
+
+	        MAX30102_StoreSample(red, ir);
+
+	        MAX30102_Metrics new_metrics;
+	        if (MAX30102_Process(&new_metrics))
+	        {
+	            if (dataMutexHandle != NULL && osMutexAcquire(dataMutexHandle, osWaitForever) == osOK)
+	            {
+	                metrics = new_metrics;
+	                osMutexRelease(dataMutexHandle);
+	            }
+	            else
+	            {
+	                metrics = new_metrics;
+	            }
+	        }
+	    }
+
+	    osDelay(10);  /* 10 ms -> 100 Hz (match MAX30102 chip rate) */
 	}
   /* USER CODE END StartTask02 */
 }
@@ -517,7 +509,6 @@ void StartTask03(void *argument)
       aht21_humidity = AHT21_Read_Humidity();
       aht21_temperature = AHT21_Read_Temperature();
       aht21_ok = (aht21_humidity != 0xFFFFFFFFU && aht21_temperature != (int32_t)0x80000000);
-      printf("AHT21: T=%ld H=%lu%% OK=%u\r\n", (long)aht21_temperature, (unsigned long)aht21_humidity, aht21_ok);
       osMutexRelease(i2cMutexHandle);
     }
     osDelay(1000);  /* 1 second */
@@ -531,7 +522,6 @@ void StartTask03(void *argument)
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTask04 */
 void StartTask04(void *argument)
 {
     SHIFT_Frame frame;
@@ -560,17 +550,25 @@ void StartTask04(void *argument)
                          local_metrics.signal_quality,
                          local_alerts);
 
-        /* ===== SEND FRAME ===== */
-        printf("TRANSMITTING!\r\n");
-        char msg[] = "send\r\n";
-        HAL_UART_Transmit(&huart2,
-                          (uint8_t*)msg,
-                          strlen(msg),
-                          HAL_MAX_DELAY);
+    /* ===== SEND FRAME (binary protocol) ===== */
+    HAL_UART_Transmit(&huart2,
+                      (uint8_t *)&frame,
+                      SHIFT_FRAME_SIZE,
+                      HAL_MAX_DELAY);
 
-        osDelay(100);
+    /* Optional: log one summary line per second for debugging */
+    printf("TX RPi: BPM=%.1f SpO2=%.1f T=%.1fC SQ=%.1f Alerts=0x%08lX\r\n",
+           local_metrics.bpm,
+           local_metrics.spo2,
+           (float)local_temp,
+           local_metrics.signal_quality,
+           (unsigned long)local_alerts);
+
+    osDelay(1000); /* 1 second summary frame */
     }
 }
+/* USER CODE END Header_StartTask04 */
+
 /* USER CODE BEGIN Header_StartTask04 */
 /**
 * @brief Function implementing the task_PiComm thread.

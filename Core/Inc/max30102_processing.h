@@ -5,7 +5,9 @@
 #include <stdint.h>
 
 #define MAX30102_SAMPLE_RATE     100.0f
-#define MAX30102_BUFFER_SIZE     200   // 2 seconds @ 100 Hz
+/* Sliding window: 8 seconds @ sample rate, processed once per second */
+#define MAX30102_BUFFER_SECONDS  8U
+#define MAX30102_BUFFER_SIZE     ((uint16_t)(MAX30102_SAMPLE_RATE * (float)MAX30102_BUFFER_SECONDS))
 
 typedef struct
 {

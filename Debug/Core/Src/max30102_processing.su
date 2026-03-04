@@ -1,0 +1,8 @@
+../Core/Src/max30102_processing.c:29:6:MAX30102_StoreSample	16	static
+../Core/Src/max30102_processing.c:62:14:remove_dc	32	static
+../Core/Src/max30102_processing.c:95:13:bandpass_filter	64	static
+../Core/Src/max30102_processing.c:127:14:calculate_bpm	40	static
+../Core/Src/max30102_processing.c:161:14:calculate_spo2	40	static
+../Core/Src/max30102_processing.c:188:14:compute_signal_quality	16	static
+../Core/Src/max30102_processing.c:201:9:MAX30102_Process	24	static
+../Core/Src/max30102_processing.c:226:6:MAX30102_ResetBuffer	4	static

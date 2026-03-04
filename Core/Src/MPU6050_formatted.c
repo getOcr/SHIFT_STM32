@@ -186,7 +186,6 @@ HAL_StatusTypeDef MPU6050_Initialization(void)
         HAL_Delay(10);
     }
 
-    printf("MPU6050 initialization finished\n");
     return HAL_OK;
 }
 

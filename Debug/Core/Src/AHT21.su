@@ -5,4 +5,4 @@
 ../Core/Src/AHT21.c:60:26:AHT21_TriggerMeasurement	16	static
 ../Core/Src/AHT21.c:66:26:AHT21_Read6	16	static
 ../Core/Src/AHT21.c:72:10:AHT21_Read_Humidity	32	static
-../Core/Src/AHT21.c:96:9:AHT21_Read_Temperature	32	static
+../Core/Src/AHT21.c:97:9:AHT21_Read_Temperature	32	static

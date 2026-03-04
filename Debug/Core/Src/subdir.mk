@@ -7,9 +7,12 @@
 C_SRCS += \
 ../Core/Src/AHT21.c \
 ../Core/Src/MPU6050_formatted.c \
+../Core/Src/alert.c \
 ../Core/Src/freertos.c \
 ../Core/Src/main.c \
 ../Core/Src/max30102.c \
+../Core/Src/max30102_processing.c \
+../Core/Src/protocol.c \
 ../Core/Src/stm32f4xx_hal_msp.c \
 ../Core/Src/stm32f4xx_hal_timebase_tim.c \
 ../Core/Src/stm32f4xx_it.c \
@@ -20,9 +23,12 @@ C_SRCS += \
 OBJS += \
 ./Core/Src/AHT21.o \
 ./Core/Src/MPU6050_formatted.o \
+./Core/Src/alert.o \
 ./Core/Src/freertos.o \
 ./Core/Src/main.o \
 ./Core/Src/max30102.o \
+./Core/Src/max30102_processing.o \
+./Core/Src/protocol.o \
 ./Core/Src/stm32f4xx_hal_msp.o \
 ./Core/Src/stm32f4xx_hal_timebase_tim.o \
 ./Core/Src/stm32f4xx_it.o \
@@ -33,9 +39,12 @@ OBJS += \
 C_DEPS += \
 ./Core/Src/AHT21.d \
 ./Core/Src/MPU6050_formatted.d \
+./Core/Src/alert.d \
 ./Core/Src/freertos.d \
 ./Core/Src/main.d \
 ./Core/Src/max30102.d \
+./Core/Src/max30102_processing.d \
+./Core/Src/protocol.d \
 ./Core/Src/stm32f4xx_hal_msp.d \
 ./Core/Src/stm32f4xx_hal_timebase_tim.d \
 ./Core/Src/stm32f4xx_it.d \
@@ -51,7 +60,7 @@ Core/Src/%.o Core/Src/%.su Core/Src/%.cyclo: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/AHT21.cyclo ./Core/Src/AHT21.d ./Core/Src/AHT21.o ./Core/Src/AHT21.su ./Core/Src/MPU6050_formatted.cyclo ./Core/Src/MPU6050_formatted.d ./Core/Src/MPU6050_formatted.o ./Core/Src/MPU6050_formatted.su ./Core/Src/freertos.cyclo ./Core/Src/freertos.d ./Core/Src/freertos.o ./Core/Src/freertos.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/max30102.cyclo ./Core/Src/max30102.d ./Core/Src/max30102.o ./Core/Src/max30102.su ./Core/Src/stm32f4xx_hal_msp.cyclo ./Core/Src/stm32f4xx_hal_msp.d ./Core/Src/stm32f4xx_hal_msp.o ./Core/Src/stm32f4xx_hal_msp.su ./Core/Src/stm32f4xx_hal_timebase_tim.cyclo ./Core/Src/stm32f4xx_hal_timebase_tim.d ./Core/Src/stm32f4xx_hal_timebase_tim.o ./Core/Src/stm32f4xx_hal_timebase_tim.su ./Core/Src/stm32f4xx_it.cyclo ./Core/Src/stm32f4xx_it.d ./Core/Src/stm32f4xx_it.o ./Core/Src/stm32f4xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f4xx.cyclo ./Core/Src/system_stm32f4xx.d ./Core/Src/system_stm32f4xx.o ./Core/Src/system_stm32f4xx.su
+	-$(RM) ./Core/Src/AHT21.cyclo ./Core/Src/AHT21.d ./Core/Src/AHT21.o ./Core/Src/AHT21.su ./Core/Src/MPU6050_formatted.cyclo ./Core/Src/MPU6050_formatted.d ./Core/Src/MPU6050_formatted.o ./Core/Src/MPU6050_formatted.su ./Core/Src/alert.cyclo ./Core/Src/alert.d ./Core/Src/alert.o ./Core/Src/alert.su ./Core/Src/freertos.cyclo ./Core/Src/freertos.d ./Core/Src/freertos.o ./Core/Src/freertos.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/max30102.cyclo ./Core/Src/max30102.d ./Core/Src/max30102.o ./Core/Src/max30102.su ./Core/Src/max30102_processing.cyclo ./Core/Src/max30102_processing.d ./Core/Src/max30102_processing.o ./Core/Src/max30102_processing.su ./Core/Src/protocol.cyclo ./Core/Src/protocol.d ./Core/Src/protocol.o ./Core/Src/protocol.su ./Core/Src/stm32f4xx_hal_msp.cyclo ./Core/Src/stm32f4xx_hal_msp.d ./Core/Src/stm32f4xx_hal_msp.o ./Core/Src/stm32f4xx_hal_msp.su ./Core/Src/stm32f4xx_hal_timebase_tim.cyclo ./Core/Src/stm32f4xx_hal_timebase_tim.d ./Core/Src/stm32f4xx_hal_timebase_tim.o ./Core/Src/stm32f4xx_hal_timebase_tim.su ./Core/Src/stm32f4xx_it.cyclo ./Core/Src/stm32f4xx_it.d ./Core/Src/stm32f4xx_it.o ./Core/Src/stm32f4xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f4xx.cyclo ./Core/Src/system_stm32f4xx.d ./Core/Src/system_stm32f4xx.o ./Core/Src/system_stm32f4xx.su
 
 .PHONY: clean-Core-2f-Src
 

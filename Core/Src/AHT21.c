@@ -79,6 +79,7 @@ uint32_t AHT21_Read_Humidity(void)
     ret = AHT21_TriggerMeasurement();
     if (ret != HAL_OK) return 0xFFFFFFFF;
 
+    /* Wait for conversion to complete (typ. ~80 ms) */
     HAL_Delay(100);
 
     ret = AHT21_Read6(buff);
@@ -103,6 +104,7 @@ int32_t AHT21_Read_Temperature(void)
     ret = AHT21_TriggerMeasurement();
     if (ret != HAL_OK) return (int32_t)0x80000000; // INT32_MIN-ish sentinel
 
+    /* Wait for conversion to complete (typ. ~80 ms) */
     HAL_Delay(100);
 
     ret = AHT21_Read6(buff);

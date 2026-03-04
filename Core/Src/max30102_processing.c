@@ -9,8 +9,19 @@ static float red_ac[MAX30102_BUFFER_SIZE];
 static float ir_ac[MAX30102_BUFFER_SIZE];
 static float ir_filtered[MAX30102_BUFFER_SIZE];
 
+/* Debug variables for SWV / ITM plotting */
+volatile float MAX30102_dbg_red_raw   = 0.0f;
+volatile float MAX30102_dbg_ir_raw    = 0.0f;
+volatile float MAX30102_dbg_ir_filt   = 0.0f;
+
+/* circular buffer index (next write position) */
 static uint16_t sample_index = 0;
+/* becomes 1 once we have filled at least one full window */
 static uint8_t buffer_full = 0;
+/* total number of samples ever stored (used to detect first full window) */
+static uint32_t total_samples = 0;
+/* number of new samples since last processing call (for 1 Hz processing) */
+static uint16_t samples_since_last_process = 0;
 
 /* ==============================
    Store Samples (called in main loop)
@@ -20,12 +31,28 @@ void MAX30102_StoreSample(uint32_t red, uint32_t ir)
     red_buffer[sample_index] = red;
     ir_buffer[sample_index]  = ir;
 
-    sample_index++;
+    /* Update debug channels with latest raw samples (100 Hz) */
+    MAX30102_dbg_red_raw = (float)red;
+    MAX30102_dbg_ir_raw  = (float)ir;
 
-    if(sample_index >= MAX30102_BUFFER_SIZE)
+    sample_index++;
+    if (sample_index >= MAX30102_BUFFER_SIZE)
     {
         sample_index = 0;
+    }
+
+    if (total_samples < 0xFFFFFFFFU)
+    {
+        total_samples++;
+    }
+    if (total_samples >= MAX30102_BUFFER_SIZE)
+    {
         buffer_full = 1;
+    }
+
+    if (samples_since_last_process < 0xFFFFU)
+    {
+        samples_since_last_process++;
     }
 }
 
@@ -35,14 +62,29 @@ void MAX30102_StoreSample(uint32_t red, uint32_t ir)
 static float remove_dc(uint32_t *input, float *output)
 {
     float mean = 0.0f;
+    uint16_t idx;
 
-    for(uint16_t i = 0; i < MAX30102_BUFFER_SIZE; i++)
-        mean += input[i];
+    /* First pass: compute mean over chronological window (oldest -> newest) */
+    idx = sample_index;
+    for (uint16_t n = 0; n < MAX30102_BUFFER_SIZE; n++)
+    {
+        mean += input[idx];
+        idx++;
+        if (idx >= MAX30102_BUFFER_SIZE)
+            idx = 0;
+    }
 
     mean /= MAX30102_BUFFER_SIZE;
 
-    for(uint16_t i = 0; i < MAX30102_BUFFER_SIZE; i++)
-        output[i] = (float)input[i] - mean;
+    /* Second pass: create a linear, time-ordered AC sequence in output[0..N-1] */
+    idx = sample_index;
+    for (uint16_t n = 0; n < MAX30102_BUFFER_SIZE; n++)
+    {
+        output[n] = (float)input[idx] - mean;
+        idx++;
+        if (idx >= MAX30102_BUFFER_SIZE)
+            idx = 0;
+    }
 
     return mean;
 }
@@ -67,6 +109,12 @@ static void bandpass_filter(float *input, float *output)
                    - a1*y1 - a2*y2;
 
         output[n] = y0;
+
+        /* Expose last filtered sample for SWV (updated each processing call) */
+        if (n == (MAX30102_BUFFER_SIZE - 1))
+        {
+            MAX30102_dbg_ir_filt = y0;
+        }
 
         x2=x1; x1=x0;
         y2=y1; y1=y0;
@@ -155,7 +203,10 @@ uint8_t MAX30102_Process(MAX30102_Metrics *metrics)
     if(!buffer_full)
         return 0;
 
-    buffer_full = 0;
+    /* ensure we only process roughly once per second */
+    if (samples_since_last_process < (uint16_t)MAX30102_SAMPLE_RATE)
+        return 0;
+    samples_since_last_process = 0;
 
     float red_dc = remove_dc(red_buffer, red_ac);
     float ir_dc  = remove_dc(ir_buffer,  ir_ac);
@@ -176,4 +227,6 @@ void MAX30102_ResetBuffer(void)
 {
     sample_index = 0;
     buffer_full  = 0;
+    total_samples = 0;
+    samples_since_last_process = 0;
 }

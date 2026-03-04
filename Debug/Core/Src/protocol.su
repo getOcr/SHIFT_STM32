@@ -1,0 +1,2 @@
+../Core/Src/protocol.c:4:16:SHIFT_ComputeCRC	24	static
+../Core/Src/protocol.c:12:6:SHIFT_BuildFrame	32	static
