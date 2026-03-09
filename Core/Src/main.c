@@ -84,13 +84,6 @@ const osMessageQueueAttr_t queue_data2Pi_attributes = {
   .name = "queue_data2Pi"
 };
 
-/* Definition for task_ALERT */
-osThreadId_t task_ALERTHandle;
-const osThreadAttr_t task_ALERT_attributes ={
-		.name = "task_ALERT",
-		.stack_size = 768*4,
-		.priority = (osPriority_t) osPriorityAboveNormal,
-};
 /* USER CODE BEGIN PV */
 osMutexId_t i2cMutexHandle = NULL;  /* protect shared I2C (hi2c1) */
 osMutexId_t dataMutexHandle = NULL;
@@ -113,7 +106,6 @@ void StartDefaultTask(void *argument);
 void StartTask02(void *argument);
 void StartTask03(void *argument);
 void StartTask04(void *argument);
-void StartTask05(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -236,8 +228,6 @@ int main(void)
   /* creation of task_PiComm */
   task_PiCommHandle = osThreadNew(StartTask04, NULL, &task_PiComm_attributes);
 
-  /* creation of the task_ALERT */
-  task_ALERTHandle = osThreadNew(StartTask05, NULL, &task_ALERT_attributes);
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -528,11 +518,19 @@ void StartTask04(void *argument)
 
     MAX30102_Metrics local_metrics;
     int32_t          local_temp;
+    Struct_MPU6050 local_mpu;
     SHIFT_AlertFlags local_alerts;
 
     for (;;)
     {
-        /* ===== PROTECTED COPY ===== */
+        /* ===== ALERT LOGIC ===== */
+        SHIFT_CheckAlerts(&local_metrics,
+                          (float)local_temp,
+                          &local_mpu,
+                          &flags);
+        /* ======================== */
+
+    	/* ===== PROTECTED COPY ===== */
         if (osMutexAcquire(dataMutexHandle, osWaitForever) == osOK)
         {
             local_metrics = metrics;
@@ -541,6 +539,18 @@ void StartTask04(void *argument)
 
             osMutexRelease(dataMutexHandle);
         }
+
+        /* ===== ACT ON FLAGS ===== */
+        if (flags != 0)
+        {
+            HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);
+            printf("!!! ALERT !!!\r\n");
+        }
+        else
+        {
+            HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+        }
+        /* ========================= */
 
         /* ===== BUILD FRAME ===== */
         SHIFT_BuildFrame(&frame,
@@ -568,60 +578,6 @@ void StartTask04(void *argument)
     }
 }
 /* USER CODE END Header_StartTask04 */
-
-/* USER CODE BEGIN Header_StartTask04 */
-/**
-* @brief Function implementing the task_PiComm thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartTask05 */
-void StartTask05(void *argument)
-{
-  MAX30102_Metrics local_metrics;
-  Struct_MPU6050   local_mpu;
-  int32_t          local_temp;
-  SHIFT_AlertFlags flags;   // <-- declare flags here
-
-  for (;;)
-  {
-    /* ===== PROTECTED COPY SECTION ===== */
-    if (osMutexAcquire(i2cMutexHandle, osWaitForever) == osOK)
-    {
-        local_metrics = metrics;
-        local_mpu     = MPU6050_Data;
-        local_temp    = aht21_temperature;
-
-        osMutexRelease(i2cMutexHandle);
-    }
-    /* ================================== */
-
-
-    /* ===== ALERT LOGIC ===== */
-    SHIFT_CheckAlerts(&local_metrics,
-                      (float)local_temp,
-                      &local_mpu,
-                      &flags);
-    /* ======================== */
-
-
-    /* ===== ACT ON FLAGS ===== */
-    if (flags != 0)
-    {
-        HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);
-        printf("!!! ALERT !!!\r\n");
-    }
-    else
-    {
-        HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
-    }
-    /* ========================= */
-
-
-    osDelay(1000);
-  }
-}
-
 
 /**
   * @brief  Period elapsed callback in non blocking mode

@@ -25,7 +25,7 @@ typedef uint32_t SHIFT_AlertFlags;
 /* -------- Thresholds -------- */
 
 /* Cardiovascular */
-#define BPM_HIGH_THRESHOLD          120.0f
+#define BPM_HIGH_THRESHOLD          60.0f
 #define BPM_LOW_THRESHOLD           45.0f
 
 /* Oxygen */
